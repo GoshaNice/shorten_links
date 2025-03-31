@@ -39,4 +39,25 @@ Docker Compose поднимет три контейнера: приложени�
 pip install -r requirements.txt
 pytest
 ```
-Информацию по покрытию можно найти в `htmlcov/`.
+Информацию по покрытию тестов:
+```bash
+Name                    Stmts   Miss  Cover
+-------------------------------------------
+src/auth/__init__.py        0      0   100%
+src/auth/db.py             14      2    86%
+src/auth/schemas.py         6      0   100%
+src/auth/users.py          26      2    92%
+src/config.py              10      0   100%
+src/database.py             9      0   100%
+src/links/__init__.py       0      0   100%
+src/links/models.py         4      0   100%
+src/links/router.py       116     60    48%
+src/links/schemas.py       18      0   100%
+src/main.py                29      6    79%
+src/models.py              14      0   100%
+tests/conftest.py          28      0   100%
+tests/test_app.py          53      0   100%
+tests/test_unit.py          7      0   100%
+-------------------------------------------
+TOTAL                     334     70    79%
+```
