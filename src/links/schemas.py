@@ -9,20 +9,14 @@ class LinkBase(BaseModel):
 
 
 class LinkCreate(LinkBase):
-    """Schema for creating a new short link."""
-
-    alias: Optional[str] = None  # custom short code (optional)
+    alias: Optional[str] = None
 
 
 class LinkUpdate(BaseModel):
-    """Schema for updating an existing short link."""
-
     original_url: HttpUrl
 
 
 class LinkRead(BaseModel):
-    """Schema for reading link info (including stats)."""
-
     short_code: str
     original_url: HttpUrl
     created_at: datetime

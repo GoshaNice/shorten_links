@@ -9,13 +9,14 @@ from redis import asyncio as aioredis
 from auth.users import auth_backend, current_active_user, fastapi_users
 from auth.db import User
 from links.router import router as links_router
+from config import REDIS_HOST
 
 import uvicorn
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-    redis = aioredis.from_url("redis://localhost")
+    redis = aioredis.from_url(f"redis://{REDIS_HOST}")
     FastAPICache.init(RedisBackend(redis), prefix="fastapi-cache")
     yield
 

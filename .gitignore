@@ -1,5 +1,7 @@
 .pytest_cache
-**/__pycache__
 .ruff_cache
+**/__pycache__
+.coverage
 .venv
 .env
+*.db

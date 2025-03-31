@@ -14,11 +14,12 @@ from auth.users import current_user, current_active_user
 from auth.db import User
 from links.models import links as Link
 from links.schemas import LinkCreate, LinkRead, LinkUpdate
+from fastapi_cache.decorator import cache
 
 
 router = APIRouter(prefix="/links", tags=["links"])
 
-RESERVED_CODES = {"docs", "redoc", "openapi", "auth", "links"}
+RESERVED_CODES = {"shorten", "search"}
 
 
 def generate_random_code(length: int = 6) -> str:
@@ -73,14 +74,15 @@ async def create_short_link(
     if user is not None:
         owner_id = getattr(user, "id", None)
 
-    # Create Link record
     new_link = {
         "user_id": owner_id,
         "original_url": str(data.original_url),
         "short_code": short_code,
         "created_at": datetime.now(),
-        "expires_at": data.expires_at.replace(tzinfo=None),
-        "click_count": 0
+        "expires_at": data.expires_at.replace(tzinfo=None)
+        if data.expires_at is not None
+        else None,
+        "click_count": 0,
     }
     statement = insert(Link).values(**new_link)
     await session.execute(statement)
@@ -89,6 +91,7 @@ async def create_short_link(
 
 
 @router.get("/search", response_model=list[LinkRead])
+@cache(expire=60)
 async def search_links(
     original_url: str = Query(..., description="Original URL to search for"),
     session: AsyncSession = Depends(get_async_session),
@@ -97,18 +100,18 @@ async def search_links(
     """
     Search for shortened links by original URL. Returns links owned by the current user that match the URL.
     """
-    # Ensure user is authenticated (current_active_user dependency does this)
     statement = select(Link).filter(
         Link.c.user_id == user.id, Link.c.original_url == original_url
     )
     result = await session.execute(statement)
-    links = result.all()
+    links = result.mappings().all()
     return links
 
 
 @router.get("/{short_code}")
+@cache(expire=60)
 async def redirect_to_url(
-    short_code: str, 
+    short_code: str,
     session: AsyncSession = Depends(get_async_session),
     user=Depends(current_user),
 ):
@@ -124,17 +127,19 @@ async def redirect_to_url(
             status_code=status.HTTP_404_NOT_FOUND, detail="Link not found"
         )
     link = link[0]
-    user_id = getattr(user, "id", None)
+    # user_id = getattr(user, "id", None)
 
-    if link.user_id and (user_id is None or link.user_id != user_id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed"
-        )
+    # if link.user_id and (user_id is None or link.user_id != user_id):
+    #     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed")
 
     if link.expires_at and datetime.utcnow() > link.expires_at:
         raise HTTPException(status_code=status.HTTP_410_GONE, detail="Link has expired")
 
-    statement = update(Link).where(Link.c.short_code == short_code).values(click_count=Link.c.click_count + 1)
+    statement = (
+        update(Link)
+        .where(Link.c.short_code == short_code)
+        .values(click_count=Link.c.click_count + 1)
+    )
     await session.execute(statement)
     await session.commit()
     return RedirectResponse(url=link.original_url)
@@ -158,7 +163,6 @@ async def get_link_stats(
         )
     link = link[0]
     if link.user_id is None or link.user_id != user.id:
-        # If the link has no owner (anonymous) or belongs to someone else, forbid access
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed to view stats"
         )
@@ -189,7 +193,11 @@ async def update_link(
             detail="Not allowed to update this link",
         )
 
-    statement = update(Link).where(Link.c.short_code == short_code).values(original_url=str(data.original_url))
+    statement = (
+        update(Link)
+        .where(Link.c.short_code == short_code)
+        .values(original_url=str(data.original_url))
+    )
     await session.execute(statement)
     await session.commit()
 
@@ -222,7 +230,6 @@ async def delete_link(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not allowed to delete this link",
         )
-    
 
     statement = delete(Link).filter(Link.c.short_code == short_code)
     await session.execute(statement)
